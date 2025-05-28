@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dapp Gửi Lời Nhắn Blockchain</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        /* CSS cho icon Lucide */
+        .lucide {
+            display: inline-block;
+            vertical-align: middle;
+        }
+        .lucide-send { width: 20px; height: 20px; }
+        .lucide-edit { width: 16px; height: 16px; }
+        .lucide-trash-2 { width: 16px; height: 16px; }
+        .lucide-heart { width: 16px; height: 16px; }
+        .lucide-message-square { width: 48px; height: 48px; }
+        .lucide-loader-2 { width: 24px; height: 24px; }
+        .lucide-link { width: 20px; height: 20px; }
+        .lucide-x { width: 16px; height: 16px; } /* Thêm icon X cho nút hủy chỉnh sửa */
+    </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-purple-50 to-indigo-100 p-4 font-sans text-gray-800 antialiased">
+
+    <header class="mb-8 text-center">
+        <h1 class="text-5xl font-extrabold text-indigo-700 drop-shadow-lg mb-2">
+            <i data-lucide="message-square" class="inline-block mr-3 h-12 w-12 text-indigo-600"></i>
+            Dapp Gửi Lời Nhắn
+        </h1>
+        <p class="text-xl text-gray-600">Gửi lời nhắn bất biến lên blockchain Ethereum</p>
+    </header>
+
+    <main class="max-w-3xl mx-auto bg-white rounded-2xl shadow-xl p-8">
+        <div id="wallet-connection-section" class="text-center p-6 bg-indigo-50 rounded-xl mb-8 shadow-inner">
+            <p class="text-lg text-indigo-700 mb-4">
+                Chào mừng bạn đến với Dapp Gửi Lời Nhắn!
+            </p>
+            <button id="connect-wallet-btn"
+                class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-full shadow-lg transform transition duration-300 hover:scale-105 flex items-center justify-center mx-auto">
+                <i data-lucide="link" class="mr-2 h-5 w-5"></i>
+                Kết nối ví MetaMask
+            </button>
+            <p id="error-message" class="text-red-500 mt-4 text-sm hidden"></p>
+        </div>
+
+        <div id="dapp-content" class="hidden">
+            <div class="text-center mb-6 p-4 bg-green-50 rounded-xl shadow-inner">
+                <p class="text-lg text-green-700 font-medium">
+                    Đã kết nối với: <span id="current-account-display" class="font-mono text-green-800"></span>
+                </p>
+            </div>
+
+            <div id="alert-error-message" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-xl relative mb-6 hidden" role="alert">
+                <strong class="font-bold">Lỗi!</strong>
+                <span id="alert-error-text" class="block sm:inline"></span>
+            </div>
+
+            <section class="mb-8 p-6 bg-gray-50 rounded-xl shadow-md">
+                <h2 class="text-2xl font-semibold text-indigo-600 mb-4 flex items-center">
+                    <i data-lucide="send" class="mr-2 h-6 w-6"></i>
+                    Gửi lời nhắn mới
+                </h2>
+                <textarea id="new-message-content"
+                    class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition duration-200 resize-y min-h-[80px]"
+                    placeholder="Viết lời nhắn của bạn ở đây..."></textarea>
+                <button id="post-message-btn"
+                    class="mt-4 w-full bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg shadow-md transform transition duration-300 hover:scale-105 flex items-center justify-center"
+                    disabled>
+                    <i data-lucide="send" class="mr-2 h-5 w-5" id="post-message-icon"></i>
+                    <span id="post-message-text">Gửi lời nhắn</span>
+                </button>
+            </section>
+
+            <section>
+                <h2 class="text-2xl font-semibold text-indigo-600 mb-4 flex items-center">
+                    <i data-lucide="message-square" class="mr-2 h-6 w-6"></i>
+                    Tất cả lời nhắn
+                </h2>
+                <div class="flex items-center mb-4">
+                    <input type="checkbox" id="my-messages-only-checkbox" class="form-checkbox h-5 w-5 text-indigo-600 rounded">
+                    <label for="my-messages-only-checkbox" class="ml-2 text-gray-700 font-medium">Chỉ hiển thị tin nhắn của tôi</label>
+                </div>
+
+                <div id="messages-list" class="space-y-4">
+                    <div id="loading-messages" class="text-center p-6 text-gray-500 flex items-center justify-center">
+                        <i data-lucide="loader-2" class="animate-spin mr-2 h-6 w-6"></i>
+                        Đang tải tin nhắn...
+                    </div>
+                    <p id="no-messages" class="text-center p-6 text-gray-500 hidden">Chưa có lời nhắn nào. Hãy là người đầu tiên gửi!</p>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <footer class="mt-12 text-center text-gray-500 text-sm">
+        <p>&copy; 2025 Dapp Gửi Lời Nhắn Blockchain. Được xây dựng với HTML, Tailwind CSS và Ethereum.</p>
+    </footer>
+
+    <script>
+        // Khởi tạo Lucide Icons
+        lucide.createIcons();
+
+        // --- Cấu hình Hợp đồng ---
+        const CONTRACT_ADDRESS = "0x297AAd040B970B09a31573D8bCe7Fe3215B2cc33";
+        const CONTRACT_ABI = [
+            { "inputs": [{ "internalType": "uint256", "name": "_id", "type": "uint256" }, { "internalType": "string", "name": "_newContent", "type": "string" }], "name": "editMessage", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
+            { "inputs": [{ "internalType": "uint256", "name": "_id", "type": "uint256" }], "name": "markAsDeleted", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
+            { "anonymous": false, "inputs": [{ "indexed": true, "internalType": "uint256", "name": "messageId", "type": "uint256" }, { "indexed": true, "internalType": "address", "name": "deleter", "type": "address" }, { "indexed": false, "internalType": "uint256", "name": "timestamp", "type": "uint256" }], "name": "MessageDeleted", "type": "event" },
+            { "anonymous": false, "inputs": [{ "indexed": true, "internalType": "uint256", "name": "messageId", "type": "uint256" }, { "indexed": true, "internalType": "address", "name": "editor", "type": "address" }, { "indexed": false, "internalType": "string", "name": "newContent", "type": "string" }, { "indexed": false, "internalType": "uint256", "name": "timestamp", "type": "uint256" }], "name": "MessageEdited", "type": "event" },
+            { "anonymous": false, "inputs": [{ "indexed": true, "internalType": "uint256", "name": "messageId", "type": "uint256" }, { "indexed": true, "internalType": "address", "name": "liker", "type": "address" }, { "indexed": false, "internalType": "uint256", "name": "timestamp", "type": "uint256" }], "name": "MessageLiked", "type": "event" },
+            { "anonymous": false, "inputs": [{ "indexed": true, "internalType": "uint256", "name": "messageId", "type": "uint256" }, { "indexed": true, "internalType": "address", "name": "unliker", "type": "address" }, { "indexed": false, "internalType": "uint256", "name": "timestamp", "type":"uint256" }], "name": "MessageUnliked", "type": "event" },
+            { "anonymous": false, "inputs": [{ "indexed": true, "internalType": "uint256", "name": "messageId", "type": "uint256" }, { "indexed": true, "internalType": "address", "name": "sender", "type": "address" }, { "indexed": false, "internalType": "string", "name": "content", "type": "string" }, { "indexed": false, "internalType": "uint256", "name": "timestamp", "type": "uint256" }], "name": "NewMessage", "type": "event" },
+            { "inputs": [{ "internalType": "string", "name": "_content", "type": "string" }], "name": "postMessage", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
+            { "inputs": [{ "internalType": "uint256", "name": "_id", "type": "uint256" }], "name": "toggleLike", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
+            { "inputs": [{ "internalType": "uint256", "name": "_id", "type": "uint256" }, { "internalType": "address", "name": "_user", "type": "address" }], "name": "getLikeStatus", "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }], "stateMutability": "view", "type": "function" },
+            { "inputs": [{ "internalType": "uint256", "name": "_index", "type": "uint256" }], "name": "getMessage", "outputs": [{ "components": [{ "internalType": "uint256", "name": "id", "type": "uint256" }, { "internalType": "string", "name": "content", "type": "string" }, { "internalType": "address", "name": "sender", "type": "address" }, { "internalType": "uint256", "name": "timestamp", "type": "uint256" }, { "internalType": "uint256", "name": "lastEditedTimestamp", "type": "uint256" }, { "internalType": "bool", "name": "isDeleted", "type": "bool" }, { "internalType": "uint256", "name": "likesCount", "type": "uint256" }], "internalType": "struct SimpleMessage.Message", "name": "", "type": "tuple" }], "stateMutability": "view", "type": "function" },
+            { "inputs": [{ "internalType": "address", "name": "_sender", "type": "address" }], "name": "getMessagesBySender", "outputs": [{ "components": [{ "internalType": "uint256", "name": "id", "type": "uint256" }, { "internalType": "string", "name": "content", "type": "string" }, { "internalType": "address", "name": "sender", "type": "address" }, { "internalType": "uint256", "name": "timestamp", "type": "uint256" }, { "internalType": "uint256", "name": "lastEditedTimestamp", "type": "uint256" }, { "internalType": "bool", "name": "isDeleted", "type": "bool" }, { "internalType": "uint256", "name": "likesCount", "type": "uint256" }], "internalType": "struct SimpleMessage.Message[]", "name": "", "type": "tuple[]" }], "stateMutability": "view", "type": "function" },
+            { "inputs": [], "name": "getTotalMessages", "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }], "stateMutability": "view", "type": "function" },
+            { "inputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }], "name": "messages", "outputs": [{ "internalType": "uint256", "name": "id", "type": "uint256" }, { "internalType": "string", "name": "content", "type": "string" }, { "internalType": "address", "name": "sender", "type": "address" }, { "internalType": "uint256", "name": "timestamp", "type": "uint256" }, { "internalType": "uint256", "name": "lastEditedTimestamp", "type": "uint256" }, { "internalType": "bool", "name": "isDeleted", "type": "bool" }, { "internalType": "uint256", "name": "likesCount", "type": "uint256" }], "stateMutability": "view", "type": "function" },
+            { "inputs": [], "name": "nextMessageId", "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }], "stateMutability": "view", "type": "function" }
+        ];
+
+        let currentAccount = null;
+        let contract = null;
+        let provider = null;
+        let signer = null;
+
+        const walletConnectionSection = document.getElementById('wallet-connection-section');
+        const dappContent = document.getElementById('dapp-content');
+        const connectWalletBtn = document.getElementById('connect-wallet-btn');
+        const errorMessageDisplay = document.getElementById('error-message');
+        const alertErrorMessage = document.getElementById('alert-error-message');
+        const alertErrorText = document.getElementById('alert-error-text');
+        const currentAccountDisplay = document.getElementById('current-account-display');
+        const newMessageContentInput = document.getElementById('new-message-content');
+        const postMessageBtn = document.getElementById('post-message-btn');
+        const postMessageIcon = document.getElementById('post-message-icon');
+        const postMessageText = document.getElementById('post-message-text');
+        const messagesList = document.getElementById('messages-list');
+        const loadingMessages = document.getElementById('loading-messages');
+        const noMessages = document.getElementById('no-messages');
+        const myMessagesOnlyCheckbox = document.getElementById('my-messages-only-checkbox'); // Lấy phần tử checkbox
+
+        let editingMessageId = null; // Biến toàn cục để theo dõi tin nhắn đang chỉnh sửa
+
+        // Hàm tiện ích để định dạng địa chỉ ví
+        const formatAddress = (address) => {
+            if (!address) return "N/A";
+            return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
+        };
+
+        // Hàm tiện ích để định dạng timestamp
+        const formatTimestamp = (timestamp) => {
+            if (!timestamp || timestamp === 0) return "N/A";
+            const date = new Date(timestamp * 1000);
+            return date.toLocaleString();
+        };
+
+        // Hiển thị lỗi
+        const displayError = (message) => {
+            alertErrorText.textContent = message;
+            alertErrorMessage.classList.remove('hidden');
+            errorMessageDisplay.textContent = message;
+            errorMessageDisplay.classList.remove('hidden');
+        };
+
+        // Ẩn lỗi
+        const hideError = () => {
+            alertErrorMessage.classList.add('hidden');
+            errorMessageDisplay.classList.add('hidden');
+        };
+
+        // Đặt trạng thái tải
+        const setLoadingState = (isLoading) => {
+            if (isLoading) {
+                postMessageBtn.disabled = true;
+                postMessageIcon.innerHTML = `<i data-lucide="loader-2" class="animate-spin mr-2 h-5 w-5"></i>`;
+                postMessageText.textContent = "Đang gửi...";
+                newMessageContentInput.disabled = true;
+                lucide.createIcons(); // Cập nhật icon
+            } else {
+                postMessageBtn.disabled = !newMessageContentInput.value.trim();
+                postMessageIcon.innerHTML = `<i data-lucide="send" class="mr-2 h-5 w-5"></i>`;
+                postMessageText.textContent = "Gửi lời nhắn";
+                newMessageContentInput.disabled = false;
+                lucide.createIcons(); // Cập nhật icon
+            }
+            // Disable/enable các nút chỉnh sửa/xóa/thích trong danh sách tin nhắn
+            document.querySelectorAll('.message-action-btn').forEach(btn => {
+                btn.disabled = isLoading;
+            });
+        };
+
+        // Kiểm tra xem MetaMask có được cài đặt không và kết nối
+        const checkIfWalletIsConnected = async () => {
+            try {
+                const { ethereum } = window;
+                if (!ethereum) {
+                    displayError("Hãy cài đặt MetaMask để sử dụng Dapp này!");
+                    return;
+                }
+
+                provider = new ethers.providers.Web3Provider(ethereum);
+                const accounts = await ethereum.request({ method: 'eth_accounts' });
+
+                if (accounts.length !== 0) {
+                    currentAccount = accounts[0];
+                    console.log("Tìm thấy tài khoản được ủy quyền:", currentAccount);
+                    currentAccountDisplay.textContent = formatAddress(currentAccount);
+                    signer = provider.getSigner();
+                    contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+                    walletConnectionSection.classList.add('hidden');
+                    dappContent.classList.remove('hidden');
+                    hideError();
+                    await fetchMessages(); // Gọi fetchMessages sau khi kết nối thành công
+                    listenToContractEvents();
+                } else {
+                    console.log("Không tìm thấy tài khoản được ủy quyền.");
+                    walletConnectionSection.classList.remove('hidden');
+                    dappContent.classList.add('hidden');
+                }
+            } catch (err) {
+                console.error(err);
+                displayError("Đã xảy ra lỗi khi kiểm tra ví.");
+            }
+        };
+
+        // Kết nối ví MetaMask
+        const connectWallet = async () => {
+            try {
+                const { ethereum } = window;
+                if (!ethereum) {
+                    displayError("Hãy cài đặt MetaMask!");
+                    return;
+                }
+
+                const accounts = await ethereum.request({ method: "eth_requestAccounts" });
+                console.log("Đã kết nối", accounts[0]);
+                currentAccount = accounts[0];
+                currentAccountDisplay.textContent = formatAddress(currentAccount);
+                signer = provider.getSigner();
+                contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+                walletConnectionSection.classList.add('hidden');
+                dappContent.classList.remove('hidden');
+                hideError();
+                await fetchMessages(); // Gọi fetchMessages sau khi kết nối thành công
+                listenToContractEvents();
+            } catch (err) {
+                console.error(err);
+                displayError("Không thể kết nối ví.");
+            }
+        };
+
+        // Lấy tất cả tin nhắn từ hợp đồng
+        const fetchMessages = async () => {
+            if (!contract) return;
+            setLoadingState(true);
+            hideError();
+            try {
+                let fetchedMessages = [];
+                const userLikedStatus = {};
+
+                messagesList.innerHTML = ''; // Xóa danh sách hiện tại
+                loadingMessages.classList.remove('hidden');
+                noMessages.classList.add('hidden');
+
+                // KIỂM TRA TÙY CHỌN LỌC
+                const showMyMessagesOnly = myMessagesOnlyCheckbox.checked && currentAccount;
+
+                if (showMyMessagesOnly) {
+                    // Lấy tin nhắn chỉ từ tài khoản hiện tại
+                    const rawMessages = await contract.getMessagesBySender(currentAccount);
+                    fetchedMessages = rawMessages.map(msg => ({
+                        id: msg.id.toNumber(),
+                        content: msg.content,
+                        sender: msg.sender,
+                        timestamp: msg.timestamp.toNumber(),
+                        lastEditedTimestamp: msg.lastEditedTimestamp.toNumber(),
+                        isDeleted: msg.isDeleted,
+                        likesCount: msg.likesCount.toNumber(),
+                    }));
+                    // Kiểm tra trạng thái thích của người dùng cho từng tin nhắn
+                    for (const msg of fetchedMessages) {
+                        userLikedStatus[msg.id] = await contract.getLikeStatus(msg.id, currentAccount);
+                    }
+
+                } else {
+                    // Lấy TẤT CẢ tin nhắn (như hiện tại)
+                    const totalMessages = (await contract.getTotalMessages()).toNumber();
+                    if (totalMessages === 0) {
+                        loadingMessages.classList.add('hidden');
+                        noMessages.classList.remove('hidden');
+                        return;
+                    }
+                    for (let i = 0; i < totalMessages; i++) {
+                        const message = await contract.messages(i);
+                        const msgId = message.id.toNumber();
+                        fetchedMessages.push({
+                            id: msgId,
+                            content: message.content,
+                            sender: message.sender,
+                            timestamp: message.timestamp.toNumber(),
+                            lastEditedTimestamp: message.lastEditedTimestamp.toNumber(),
+                            isDeleted: message.isDeleted,
+                            likesCount: message.likesCount.toNumber(),
+                        });
+                        if (currentAccount) {
+                            userLikedStatus[msgId] = await contract.getLikeStatus(msgId, currentAccount);
+                        }
+                    }
+                }
+
+                // Lọc các tin nhắn đã bị xóa nếu không hiển thị tin nhắn của tôi
+                // Hoặc bạn có thể chọn hiển thị cả tin nhắn đã xóa của chính mình
+                const filteredAndSortedMessages = fetchedMessages
+                    // .filter(msg => showMyMessagesOnly || !msg.isDeleted) // Bỏ comment dòng này nếu bạn muốn ẩn tin nhắn đã xóa của người khác
+                    .sort((a, b) => b.timestamp - a.timestamp); // Sắp xếp tin nhắn mới nhất trước
+
+                displayMessages(filteredAndSortedMessages, userLikedStatus);
+
+                if (filteredAndSortedMessages.length === 0) {
+                    noMessages.classList.remove('hidden');
+                } else {
+                    noMessages.classList.add('hidden');
+                }
+
+            } catch (err) {
+                console.error("Lỗi khi lấy tin nhắn:", err);
+                displayError("Không thể tải tin nhắn. Vui lòng thử lại.");
+            } finally {
+                setLoadingState(false);
+                loadingMessages.classList.add('hidden');
+            }
+        };
+
+        // Hiển thị tin nhắn trên giao diện
+        const displayMessages = (messagesToDisplay, userLikedStatus) => {
+            messagesList.innerHTML = ''; // Xóa danh sách hiện tại
+            if (messagesToDisplay.length === 0) {
+                noMessages.classList.remove('hidden');
+                return;
+            }
+            noMessages.classList.add('hidden');
+
+            messagesToDisplay.forEach(message => {
+                const messageElement = document.createElement('div');
+                messageElement.id = `message-${message.id}`;
+                const isCurrentUserSender = currentAccount && message.sender.toLowerCase() === currentAccount.toLowerCase();
+                const isBeingEdited = editingMessageId === message.id;
+                const hasUserLiked = userLikedStatus[message.id];
+
+                messageElement.className = `p-5 border rounded-xl shadow-sm transition-all duration-300 ${
+                    message.isDeleted ? 'bg-red-50 border-red-200 opacity-70 italic' : 'bg-white border-gray-200'
+                } ${isBeingEdited ? 'ring-2 ring-indigo-400' : ''}`;
+
+                messageElement.innerHTML = `
+                    <div class="flex justify-between items-start mb-2">
+                        <p class="text-sm text-gray-500 font-medium">
+                            Người gửi: <span class="font-mono text-gray-700">${formatAddress(message.sender)}</span>
+                        </p>
+                        <div class="flex space-x-2">
+                            ${isCurrentUserSender && !message.isDeleted ? `
+                                ${isBeingEdited ? `
+                                    <button class="message-action-btn p-2 rounded-full bg-green-100 text-green-600 hover:bg-green-200 transition-colors" title="Lưu chỉnh sửa" data-action="save-edit" data-id="${message.id}">
+                                        <i data-lucide="send" class="h-4 w-4"></i>
+                                    </button>
+                                    <button class="message-action-btn p-2 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors" title="Hủy" data-action="cancel-edit" data-id="${message.id}">
+                                        <i data-lucide="x" class="h-4 w-4"></i>
+                                    </button>
+                                ` : `
+                                    <button class="message-action-btn p-2 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 transition-colors" title="Chỉnh sửa" data-action="edit" data-id="${message.id}" data-content="${message.content}">
+                                        <i data-lucide="edit" class="h-4 w-4"></i>
+                                    </button>
+                                    <button class="message-action-btn p-2 rounded-full bg-red-100 text-red-600 hover:bg-red-200 transition-colors" title="Xóa" data-action="delete" data-id="${message.id}">
+                                        <i data-lucide="trash-2" class="h-4 w-4"></i>
+                                    </button>
+                                `}
+                            ` : ''}
+                        </div>
+                    </div>
+                    ${isBeingEdited ? `
+                        <textarea class="w-full p-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-indigo-400 focus:border-transparent transition duration-200 resize-y min-h-[60px] text-lg font-medium" data-id="${message.id}">${message.content}</textarea>
+                    ` : `
+                        <p class="text-lg font-medium mb-2 ${message.isDeleted ? 'line-through text-gray-400' : 'text-gray-900'}">
+                            ${message.content}
+                        </p>
+                    `}
+                    <div class="flex items-center justify-between text-sm text-gray-500">
+                        <p>
+                            Gửi lúc: ${formatTimestamp(message.timestamp)}
+                            ${message.lastEditedTimestamp > 0 ? `
+                                <span class="ml-2 text-xs text-gray-400">(Chỉnh sửa: ${formatTimestamp(message.lastEditedTimestamp)})</span>
+                            ` : ''}
+                        </p>
+                        <div class="flex items-center space-x-3">
+                            <button class="message-action-btn flex items-center p-1 rounded-full transition-colors ${
+                                hasUserLiked ? 'text-red-500 bg-red-100' : 'text-gray-400 hover:text-red-500 hover:bg-red-50'
+                            }" title="${hasUserLiked ? "Bỏ thích" : "Thích"}" data-action="toggle-like" data-id="${message.id}" ${message.isDeleted ? 'disabled' : ''}>
+                                <i data-lucide="heart" class="h-4 w-4 ${hasUserLiked ? 'fill-current' : ''}"></i>
+                                <span class="ml-1">${message.likesCount}</span>
+                            </button>
+                        </div>
+                    </div>
+                    ${message.isDeleted ? `
+                        <p class="text-red-500 text-sm mt-2">Lời nhắn này đã bị xóa.</p>
+                    ` : ''}
+                `;
+                messagesList.appendChild(messageElement);
+            });
+            lucide.createIcons(); // Tạo lại icon sau khi cập nhật DOM
+
+            // Gắn lại các trình xử lý sự kiện cho các nút mới
+            attachMessageActionListeners();
+        };
+
+        // Gắn trình xử lý sự kiện cho các nút hành động của tin nhắn
+        const attachMessageActionListeners = () => {
+            document.querySelectorAll('.message-action-btn').forEach(button => {
+                button.onclick = async (event) => {
+                    const action = event.currentTarget.dataset.action;
+                    const id = parseInt(event.currentTarget.dataset.id);
+                    setLoadingState(true);
+                    hideError();
+                    try {
+                        let tx;
+                        if (action === 'edit') {
+                            editingMessageId = id;
+                            const content = event.currentTarget.dataset.content;
+                            // Re-render to show textarea for the specific message
+                            // We need to fetch current messages state to correctly re-render
+                            // For simplicity in pure JS, we'll just re-fetch all messages
+                            // and then set the textarea content
+                            await fetchMessages();
+                            const textarea = document.querySelector(`#message-${id} textarea`);
+                            if (textarea) textarea.value = content;
+                            setLoadingState(false);
+                            return;
+                        } else if (action === 'save-edit') {
+                            const newContent = document.querySelector(`#message-${id} textarea`).value.trim();
+                            if (!newContent) {
+                                displayError("Nội dung chỉnh sửa không được rỗng.");
+                                setLoadingState(false);
+                                return;
+                            }
+                            tx = await contract.editMessage(id, newContent);
+                        } else if (action === 'cancel-edit') {
+                            editingMessageId = null;
+                            await fetchMessages(); // Tải lại để bỏ trạng thái chỉnh sửa
+                            setLoadingState(false);
+                            return;
+                        } else if (action === 'delete') {
+                            tx = await contract.markAsDeleted(id);
+                        } else if (action === 'toggle-like') {
+                            tx = await contract.toggleLike(id);
+                        }
+
+                        if (tx) {
+                            await tx.wait();
+                            editingMessageId = null; // Reset editing state after transaction
+                            await fetchMessages(); // Tải lại tin nhắn sau giao dịch
+                        }
+                    } catch (err) {
+                        console.error(`Lỗi khi thực hiện hành động ${action} cho tin nhắn ID ${id}:`, err);
+                        displayError(`Không thể thực hiện hành động. Hãy đảm bảo bạn có đủ gas và quyền.`);
+                    } finally {
+                        setLoadingState(false);
+                    }
+                };
+            });
+        };
+
+        // Gửi tin nhắn mới
+        postMessageBtn.addEventListener('click', async () => {
+            const content = newMessageContentInput.value.trim();
+            if (!contract || !content) {
+                displayError("Nội dung tin nhắn không được rỗng.");
+                return;
+            }
+            setLoadingState(true);
+            hideError();
+            try {
+                const tx = await contract.postMessage(content);
+                await tx.wait();
+                newMessageContentInput.value = '';
+                await fetchMessages(); // Tải lại tin nhắn sau khi gửi
+            } catch (err) {
+                console.error("Lỗi khi gửi tin nhắn:", err);
+                displayError("Không thể gửi tin nhắn. Hãy đảm bảo bạn đã kết nối ví và có đủ gas.");
+            } finally {
+                setLoadingState(false);
+            }
+        });
+
+        // Kích hoạt/vô hiệu hóa nút gửi khi nội dung thay đổi
+        newMessageContentInput.addEventListener('input', () => {
+            postMessageBtn.disabled = !newMessageContentInput.value.trim();
+        });
+
+        // Lắng nghe sự kiện từ hợp đồng
+        const listenToContractEvents = () => {
+            if (!contract) return;
+
+            contract.on("NewMessage", (messageId, sender, content, timestamp) => {
+                console.log("Sự kiện NewMessage:", { messageId, sender, content, timestamp });
+                fetchMessages();
+            });
+            contract.on("MessageEdited", (messageId, editor, newContent, timestamp) => {
+                console.log("Sự kiện MessageEdited:", { messageId, editor, newContent, timestamp });
+                fetchMessages();
+            });
+            contract.on("MessageDeleted", (messageId, deleter, timestamp) => {
+                console.log("Sự kiện MessageDeleted:", { messageId, deleter, timestamp });
+                fetchMessages();
+            });
+            contract.on("MessageLiked", (messageId, liker, timestamp) => {
+                console.log("Sự kiện MessageLiked:", { messageId, liker, timestamp });
+                fetchMessages();
+            });
+            contract.on("MessageUnliked", (messageId, unliker, timestamp) => {
+                console.log("Sự kiện MessageUnliked:", { messageId, unliker, timestamp });
+                fetchMessages();
+            });
+        };
+
+        // Thêm trình nghe sự kiện khi checkbox thay đổi trạng thái
+        myMessagesOnlyCheckbox.addEventListener('change', async () => {
+            // Nếu chưa kết nối tài khoản, không làm gì hoặc hiển thị thông báo
+            if (!currentAccount) {
+                myMessagesOnlyCheckbox.checked = false; // Bỏ chọn nếu chưa kết nối
+                displayError("Vui lòng kết nối ví để lọc tin nhắn của bạn.");
+                return;
+            }
+            hideError(); // Xóa lỗi cũ
+            await fetchMessages(); // Tải lại tin nhắn với tùy chọn lọc mới
+        });
+
+
+        // Xử lý khi trang được tải
+        window.onload = async () => {
+            connectWalletBtn.addEventListener('click', connectWallet);
+            await checkIfWalletIsConnected();
+
+            // Lắng nghe sự thay đổi tài khoản MetaMask
+            if (window.ethereum) {
+                window.ethereum.on('accountsChanged', (accounts) => {
+                    if (accounts.length === 0) {
+                        // Người dùng đã ngắt kết nối tất cả tài khoản
+                        currentAccount = null;
+                        walletConnectionSection.classList.remove('hidden');
+                        dappContent.classList.add('hidden');
+                        currentAccountDisplay.textContent = '';
+                        messagesList.innerHTML = '';
+                        noMessages.classList.remove('hidden');
+                        console.log("Tài khoản MetaMask đã bị ngắt kết nối.");
+                    } else {
+                        // Tài khoản đã thay đổi
+                        currentAccount = accounts[0];
+                        currentAccountDisplay.textContent = formatAddress(currentAccount);
+                        signer = provider.getSigner();
+                        contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+                        fetchMessages();
+                        console.log("Tài khoản MetaMask đã thay đổi thành:", currentAccount);
+                    }
+                });
+
+                window.ethereum.on('chainChanged', (chainId) => {
+                    // Mạng đã thay đổi, yêu cầu người dùng kết nối lại hoặc tải lại trang
+                    console.log("Mạng MetaMask đã thay đổi thành:", chainId);
+                    window.location.reload(); // Cách đơn giản để xử lý thay đổi mạng
+                });
+            }
+        };
+    </script>
+</body>
+</html>
